@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Presence Nudges — Presence Pulse</title>
+<link rel="stylesheet" href="globals.css">
+<script src="shared-sidebar.js"></script>
+
+<style>
+  /* Override for Vanta transparency */
+  .sidebar { background: rgba(14,17,24,0.85) !important; backdrop-filter: blur(12px); }
+  .card { background: rgba(14,17,24,0.65) !important; backdrop-filter: blur(10px); }
+
+  /* ── Points banner top ── */
+  .points-strip {
+    display: flex; align-items: center; gap: 16px;
+    background: rgba(99,85,232,0.08); border: 1px solid rgba(99,85,232,0.2);
+    border-radius: var(--radius-md); padding: 12px 20px;
+    margin-bottom: 24px;
+  }
+  .ps-icon { font-size: 22px; }
+  .ps-value {
+    font-family: var(--font-display); font-size: 24px; font-weight: 800;
+    color: var(--text-0);
+  }
+  .ps-label { font-size: 12px; color: var(--text-2); }
+  .ps-delta {
+    margin-left: auto; font-size: 13px; font-weight: 600;
+    padding: 4px 12px; border-radius: 20px;
+  }
+  .ps-delta.up { background: rgba(74,222,128,0.1); color: var(--green-400); border: 1px solid rgba(74,222,128,0.2); }
+  .ps-delta.down { background: rgba(248,113,113,0.1); color: var(--red-400); border: 1px solid rgba(248,113,113,0.2); }
+
+  /* ── Active challenges section ── */
+  .section-title-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .section-title-row h2 {
+    font-family: var(--font-display); font-size: 18px; font-weight: 700;
+    color: var(--text-0); letter-spacing: -0.3px;
+  }
+  .challenge-count {
+    font-size: 12px; color: var(--text-2); background: var(--bg-3);
+    padding: 4px 12px; border-radius: 20px; border: 1px solid var(--border-0);
+  }
+
+  /* ── Challenge card ── */
+  .challenge-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
+    margin-bottom: 28px;
+  }
+  .challenge-card {
+    background: var(--bg-2); border: 1px solid var(--border-0);
+    border-radius: var(--radius-lg); padding: 20px;
+    position: relative; overflow: hidden;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .challenge-card:hover { border-color: rgba(99,85,232,0.3); transform: translateY(-2px); }
+  .challenge-card.completed {
+    opacity: 0.55; pointer-events: none;
+  }
+
+  .ch-header {
+    display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px;
+  }
+  .ch-icon-wrap {
+    width: 44px; height: 44px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+  }
+  .ch-trigger-tag {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.8px;
+    text-transform: uppercase; margin-bottom: 4px;
+  }
+  .ch-title {
+    font-family: var(--font-display); font-size: 15px; font-weight: 700;
+    color: var(--text-0); line-height: 1.3;
+  }
+
+  .ch-desc {
+    font-size: 13px; color: var(--text-2); line-height: 1.6;
+    margin-bottom: 14px;
+  }
+
+  .ch-reward-row {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 16px; font-size: 12px;
+  }
+  .ch-reward {
+    display: flex; align-items: center; gap: 5px;
+    color: var(--green-400); font-weight: 600;
+  }
+  .ch-penalty {
+    display: flex; align-items: center; gap: 5px;
+    color: var(--red-400); font-weight: 600;
+  }
+  .ch-difficulty {
+    margin-left: auto; display: flex; align-items: center; gap: 4px;
+    color: var(--text-3); font-size: 11px;
+  }
+  .ch-difficulty .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--bg-4);
+  }
+  .ch-difficulty .dot.filled { background: var(--amber-400); }
+
+  .ch-timer {
+    font-size: 11px; color: var(--text-3); margin-bottom: 14px;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  .ch-actions {
+    display: flex; gap: 10px;
+  }
+  .ch-btn {
+    flex: 1; padding: 10px; border-radius: var(--radius-sm);
+    font-family: var(--font-display); font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: all 0.15s; border: none;
+    letter-spacing: 0.2px; text-align: center;
+  }
+  .ch-btn-accept {
+    background: var(--purple-500); color: white;
+  }
+  .ch-btn-accept:hover { background: var(--purple-600); transform: translateY(-1px); }
+  .ch-btn-reject {
+    background: transparent; border: 1px solid var(--border-1);
+    color: var(--text-2);
+  }
+  .ch-btn-reject:hover { background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.3); color: var(--red-400); }
+
+  .ch-result-badge {
+    padding: 8px 16px; border-radius: var(--radius-sm);
+    font-size: 13px; font-weight: 700; text-align: center;
+    font-family: var(--font-display);
+  }
+  .ch-result-accepted {
+    background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.25);
+    color: var(--green-400);
+  }
+  .ch-result-rejected {
+    background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.2);
+    color: var(--red-400);
+  }
+
+  /* ── Nudge history card ── */
+  .nudge-row {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 0; border-bottom: 1px solid var(--border-0);
+    transition: background 0.1s;
+  }
+  .nudge-row:last-child { border-bottom: none; }
+  .nudge-icon {
+    width: 36px; height: 36px; border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+  }
+  .nudge-body { flex: 1; }
+  .nudge-name { font-size: 13px; font-weight: 600; color: var(--text-0); margin-bottom: 2px; }
+  .nudge-meta { font-size: 12px; color: var(--text-2); }
+  .nudge-pts {
+    font-family: var(--font-display); font-size: 14px; font-weight: 700;
+  }
+  .nudge-pts.pos { color: var(--green-400); }
+  .nudge-pts.neg { color: var(--red-400); }
+
+  /* ── Stats sidebar cards ── */
+  .stat-mini {
+    background: var(--bg-3); border: 1px solid var(--border-0);
+    border-radius: var(--radius-md); padding: 14px 16px;
+    text-align: center;
+  }
+  .stat-mini-val {
+    font-family: var(--font-display); font-size: 22px; font-weight: 800;
+    color: var(--text-0);
+  }
+  .stat-mini-label { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+
+  .insight-callout {
+    background: linear-gradient(135deg, rgba(45,212,191,0.08), rgba(99,85,232,0.05));
+    border: 1px solid rgba(45,212,191,0.2); border-radius: var(--radius-lg);
+    padding: 18px 20px; margin-top: 4px;
+  }
+  .ic-label { font-size: 10px; color: var(--teal-400); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+  .ic-text { font-size: 13px; color: var(--text-1); line-height: 1.6; }
+
+  /* ── Toast notification ── */
+  .toast {
+    position: fixed; bottom: 28px; right: 28px; z-index: 600;
+    background: var(--bg-2); border: 1px solid rgba(74,222,128,0.3);
+    border-radius: var(--radius-md); padding: 14px 20px;
+    display: flex; align-items: center; gap: 12px;
+    font-size: 14px; color: var(--text-0);
+    transform: translateY(80px); opacity: 0;
+    transition: all 0.35s cubic-bezier(0.22,1,0.36,1);
+    pointer-events: none;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.penalty { border-color: rgba(248,113,113,0.3); }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .challenge-grid { grid-template-columns: 1fr; }
+    .points-strip { flex-wrap: wrap; }
+  }
+  @media (max-width: 480px) {
+    .challenge-grid { gap: 10px; }
+    .ch-actions { flex-direction: column; }
+  }
+</style>
+</head>
+<body data-page="nudges" id="body">
+<div class="app-shell">
+  <main class="main-content">
+    <div class="page-header fade-up" style="display:flex;align-items:flex-start;justify-content:space-between;">
+      <div>
+        <div class="page-title">Presence Nudges</div>
+        <div class="page-subtitle">Accept challenges to build presence habits and earn points</div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <select id="rangeSelect" onchange="filterHistory()" style="background:var(--bg-2);border:1px solid var(--border-1);border-radius:var(--radius-sm);padding:8px 14px;color:var(--text-1);font-family:var(--font-body);font-size:13px;outline:none;">
+          <option value="7">Last 7 days</option>
+          <option value="14">Last 14 days</option>
+          <option value="30">Last 30 days</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Points strip -->
+    <div class="points-strip fade-up fade-up-1">
+      <span class="ps-icon">💎</span>
+      <div>
+        <div class="ps-value" id="presencePoints">740</div>
+        <div class="ps-label">Presence Points</div>
+      </div>
+      <div class="ps-delta up" id="pointsDelta">+35 this week</div>
+    </div>
+
+    <!-- Active Challenges -->
+    <div class="section-title-row fade-up fade-up-2">
+      <h2>🔥 Active Challenges</h2>
+      <span class="challenge-count" id="challengeCount">8 challenges</span>
+    </div>
+
+    <div class="challenge-grid fade-up fade-up-2" id="challengeGrid">
+      <!-- Populated by JS -->
+    </div>
+
+    <!-- Bottom grid: History + Stats -->
+    <div class="grid-2-1 fade-up fade-up-3">
+      <!-- Left: Challenge history -->
+      <div class="card">
+        <div class="card-title">Challenge History</div>
+        <div id="historyList">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Right: Stats -->
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div class="card">
+          <div class="card-title">Challenge Stats</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="stat-mini">
+              <div class="stat-mini-val" style="color:var(--green-400);" id="statAccepted">0</div>
+              <div class="stat-mini-label">Accepted</div>
+            </div>
+            <div class="stat-mini">
+              <div class="stat-mini-val" style="color:var(--red-400);" id="statRejected">0</div>
+              <div class="stat-mini-label">Rejected</div>
+            </div>
+            <div class="stat-mini">
+              <div class="stat-mini-val" style="color:var(--purple-400);" id="statEarned">0</div>
+              <div class="stat-mini-label">Pts earned</div>
+            </div>
+            <div class="stat-mini">
+              <div class="stat-mini-val" style="color:var(--amber-400);" id="statRate">0%</div>
+              <div class="stat-mini-label">Accept rate</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="insight-callout">
+          <div class="ic-label">💡 Coach tip</div>
+          <div class="ic-text">Accepting challenges consistently builds your presence muscle. Hard challenges earn +5 pts, Medium +3, Easy +1. Users who accept 80%+ challenges gain 3× more points per week.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Point Rules</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+              <span style="background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.2);border-radius:6px;padding:4px 10px;color:var(--green-400);font-weight:700;font-family:var(--font-display);">+5</span>
+              <span style="color:var(--text-1);">Accept Hard challenge</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+              <span style="background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.2);border-radius:6px;padding:4px 10px;color:var(--green-400);font-weight:700;font-family:var(--font-display);">+3</span>
+              <span style="color:var(--text-1);">Accept Medium challenge</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+              <span style="background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.2);border-radius:6px;padding:4px 10px;color:var(--green-400);font-weight:700;font-family:var(--font-display);">+1</span>
+              <span style="color:var(--text-1);">Accept Easy challenge</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+              <span style="background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);border-radius:6px;padding:4px 10px;color:var(--red-400);font-weight:700;font-family:var(--font-display);">−1</span>
+              <span style="color:var(--text-1);">Reject any challenge</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <span id="toastIcon">🎉</span>
+  <span id="toastMsg">Challenge accepted!</span>
+</div>
+
+<script>
+// ── Challenge data ──────────────────────────────────────────────────────
+const challenges = [
+  {
+    id: 1,
+    icon: '📸', iconBg: 'rgba(232,121,249,0.12)',
+    trigger: 'Instagram limit exceeded',
+    triggerColor: '#e879f9',
+    title: 'Digital Sunset Challenge',
+    desc: 'You exceeded your Instagram daily limit by 15 min. Challenge: Put your phone in another room for 1 hour right now.',
+    difficulty: 3,
+    timeLeft: '58 min left',
+    status: 'active'
+  },
+  {
+    id: 2,
+    icon: '🎵', iconBg: 'rgba(45,212,191,0.12)',
+    trigger: 'TikTok limit exceeded',
+    triggerColor: '#2dd4bf',
+    title: 'Focus Reboot Challenge',
+    desc: 'TikTok usage went 20 min over limit. Challenge: Do a 10-minute focused activity (reading, walking, or stretching) without any screens.',
+    difficulty: 2,
+    timeLeft: '2 hrs left',
+    status: 'active'
+  },
+  {
+    id: 3,
+    icon: '🍽️', iconBg: 'rgba(251,191,36,0.12)',
+    trigger: 'Dinner time phubbing detected',
+    triggerColor: '#fbbf24',
+    title: 'Mindful Meal Challenge',
+    desc: 'Phone usage detected during dinner. Challenge: Keep your phone face-down for the entire next meal.',
+    difficulty: 1,
+    timeLeft: 'Next meal',
+    status: 'active'
+  },
+  {
+    id: 4,
+    icon: '📺', iconBg: 'rgba(248,113,113,0.12)',
+    trigger: 'YouTube limit exceeded',
+    triggerColor: '#f87171',
+    title: 'Analog Hour Challenge',
+    desc: 'YouTube binge detected (45 min over). Challenge: Replace your next video session with 2000 steps walk.',
+    difficulty: 3,
+    timeLeft: '4 hrs left',
+    status: 'active'
+  },
+  {
+    id: 5,
+    icon: '😴', iconBg: 'rgba(124,111,255,0.12)',
+    trigger: 'Bedtime phone usage',
+    triggerColor: '#7c6fff',
+    title: 'Sleep Guardian Challenge',
+    desc: 'Phone used 30 min past bedtime. Challenge: Charge your phone outside the bedroom tonight.',
+    difficulty: 2,
+    timeLeft: 'Tonight',
+    status: 'active'
+  },
+  {
+    id: 6,
+    icon: '💬', iconBg: 'rgba(45,212,191,0.12)',
+    trigger: 'WhatsApp overuse',
+    triggerColor: '#2dd4bf',
+    title: 'Reply Window Challenge',
+    desc: 'WhatsApp exceeded by 25 min. Challenge: Only check messages 3 times in the next 2 hours — batch your replies.',
+    difficulty: 2,
+    timeLeft: '1.5 hrs left',
+    status: 'active'
+  },
+  {
+    id: 7,
+    icon: '🏋️', iconBg: 'rgba(74,222,128,0.12)',
+    trigger: 'Exercise time missed',
+    triggerColor: '#4ade80',
+    title: 'Movement Break Challenge',
+    desc: 'You skipped your exercise slot. Challenge: Do 15 minutes of any physical activity in the next hour (push-ups, walk, yoga).',
+    difficulty: 1,
+    timeLeft: '45 min left',
+    status: 'active'
+  },
+  {
+    id: 8,
+    icon: '🔴', iconBg: 'rgba(248,113,113,0.12)',
+    trigger: 'Reddit scrolling detected',
+    triggerColor: '#f87171',
+    title: 'Deep Work Sprint Challenge',
+    desc: 'Reddit scrolled for 30 min during work hours. Challenge: Do a 25-minute Pomodoro focus session without touching your phone.',
+    difficulty: 2,
+    timeLeft: '3 hrs left',
+    status: 'active'
+  },
+];
+
+// History of past challenge responses
+const nudgeHistory = [
+  { icon: '📸', name: 'Digital Sunset Challenge', trigger: 'Instagram', date: 'Yesterday', time: '8:30 PM', result: 'accepted', pts: +5 },
+  { icon: '🍽️', name: 'Mindful Meal Challenge', trigger: 'Dinner phubbing', date: 'Yesterday', time: '7:15 PM', result: 'accepted', pts: +5 },
+  { icon: '💬', name: 'Reply Window Challenge', trigger: 'WhatsApp', date: 'Yesterday', time: '3:20 PM', result: 'rejected', pts: -1 },
+  { icon: '😴', name: 'Sleep Guardian Challenge', trigger: 'Bedtime', date: 'Mar 12', time: '11:00 PM', result: 'accepted', pts: +5 },
+  { icon: '🎵', name: 'Focus Reboot Challenge', trigger: 'TikTok', date: 'Mar 12', time: '5:45 PM', result: 'accepted', pts: +5 },
+  { icon: '📺', name: 'Analog Hour Challenge', trigger: 'YouTube', date: 'Mar 11', time: '9:10 PM', result: 'rejected', pts: -1 },
+  { icon: '🏋️', name: 'Movement Break Challenge', trigger: 'Exercise missed', date: 'Mar 11', time: '6:30 AM', result: 'accepted', pts: +5 },
+  { icon: '🔴', name: 'Deep Work Sprint', trigger: 'Reddit', date: 'Mar 10', time: '2:15 PM', result: 'accepted', pts: +5 },
+  { icon: '📸', name: 'Digital Sunset Challenge', trigger: 'Instagram', date: 'Mar 10', time: '8:00 PM', result: 'accepted', pts: +5 },
+  { icon: '💬', name: 'Reply Window Challenge', trigger: 'WhatsApp', date: 'Mar 9', time: '4:30 PM', result: 'accepted', pts: +5 },
+];
+
+let currentPoints = 740;
+let acceptedCount = 0;
+let rejectedCount = 0;
+
+// Count from history
+nudgeHistory.forEach(h => {
+  if (h.result === 'accepted') acceptedCount++;
+  else rejectedCount++;
+});
+
+// ── Render challenges ───────────────────────────────────────────────────
+function renderChallenges() {
+  const grid = document.getElementById('challengeGrid');
+  const active = challenges.filter(c => c.status === 'active');
+  document.getElementById('challengeCount').textContent = `${active.length} active`;
+
+  grid.innerHTML = active.map(c => {
+    const dots = Array.from({length: 3}, (_, i) =>
+      `<div class="dot ${i < c.difficulty ? 'filled' : ''}"></div>`
+    ).join('');
+    const diffLabel = ['', 'Easy', 'Medium', 'Hard'][c.difficulty];
+    const acceptPts = {1: 1, 2: 3, 3: 5}[c.difficulty];
+
+    return `
+      <div class="challenge-card" id="ch-${c.id}">
+        <div class="ch-header">
+          <div class="ch-icon-wrap" style="background:${c.iconBg}">${c.icon}</div>
+          <div>
+            <div class="ch-trigger-tag" style="color:${c.triggerColor}">${c.trigger}</div>
+            <div class="ch-title">${c.title}</div>
+          </div>
+        </div>
+        <div class="ch-desc">${c.desc}</div>
+        <div class="ch-reward-row">
+          <div class="ch-reward">✓ Accept: <strong>+${acceptPts} pts</strong></div>
+          <div class="ch-penalty">✗ Reject: <strong>−1 pt</strong></div>
+          <div class="ch-difficulty">${dots} ${diffLabel}</div>
+        </div>
+        <div class="ch-timer">⏱ ${c.timeLeft}</div>
+        <div class="ch-actions">
+          <button class="ch-btn ch-btn-accept" onclick="respondChallenge(${c.id}, 'accept')">✓ Accept Challenge</button>
+          <button class="ch-btn ch-btn-reject" onclick="respondChallenge(${c.id}, 'reject')">✗ Reject</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Render completed challenges (greyed out)
+  const completed = challenges.filter(c => c.status !== 'active');
+  completed.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'challenge-card completed';
+    card.id = `ch-${c.id}`;
+    const resultClass = c.status === 'accepted' ? 'ch-result-accepted' : 'ch-result-rejected';
+    const cPts = {1: 1, 2: 3, 3: 5}[c.difficulty];
+    const resultText = c.status === 'accepted' ? `✓ Accepted (+${cPts} pts)` : '✗ Rejected (−1 pt)';
+    card.innerHTML = `
+      <div class="ch-header">
+        <div class="ch-icon-wrap" style="background:${c.iconBg}">${c.icon}</div>
+        <div>
+          <div class="ch-trigger-tag" style="color:${c.triggerColor}">${c.trigger}</div>
+          <div class="ch-title">${c.title}</div>
+        </div>
+      </div>
+      <div class="ch-desc">${c.desc}</div>
+      <div class="ch-result-badge ${resultClass}">${resultText}</div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+// ── Respond to challenge ────────────────────────────────────────────────
+function respondChallenge(id, action) {
+  const challenge = challenges.find(c => c.id === id);
+  if (!challenge || challenge.status !== 'active') return;
+
+  const isAccept = action === 'accept';
+  const acceptPts = {1: 1, 2: 3, 3: 5}[challenge.difficulty];
+  const pts = isAccept ? acceptPts : -1;
+
+  // Update points
+  currentPoints += pts;
+  document.getElementById('presencePoints').textContent = currentPoints;
+
+  // Update challenge status
+  challenge.status = isAccept ? 'accepted' : 'rejected';
+
+  // Add to history
+  nudgeHistory.unshift({
+    icon: challenge.icon,
+    name: challenge.title,
+    trigger: challenge.trigger,
+    date: 'Just now',
+    time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+    result: isAccept ? 'accepted' : 'rejected',
+    pts: pts
+  });
+
+  // Update counts
+  if (isAccept) acceptedCount++;
+  else rejectedCount++;
+
+  // Animate card
+  const card = document.getElementById(`ch-${id}`);
+  card.style.transform = isAccept ? 'scale(1.02)' : 'scale(0.98)';
+  card.style.borderColor = isAccept ? 'rgba(74,222,128,0.5)' : 'rgba(248,113,113,0.5)';
+
+  setTimeout(() => {
+    renderChallenges();
+    renderHistory();
+    updateStats();
+  }, 400);
+
+  // Show toast
+  const diffName = ['', 'Easy', 'Medium', 'Hard'][challenge.difficulty];
+  if (isAccept) {
+    showToast('🎉', `${diffName} challenge accepted! +${pts} presence points earned`);
+  } else {
+    showToast('😔', `Challenge rejected. −1 presence point`, true);
+  }
+
+  // Send to backend (non-blocking)
+  fetch('/api/respond-challenge', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken'),
+    },
+    body: JSON.stringify({
+      challenge_id: id,
+      challenge_name: challenge.title,
+      trigger: challenge.trigger,
+      action: action,
+      points_change: pts,
+    })
+  }).catch(err => console.log('Backend sync pending:', err));
+}
+
+// ── Render history ──────────────────────────────────────────────────────
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  list.innerHTML = nudgeHistory.map(h => {
+    const isAccepted = h.result === 'accepted';
+    const badge = isAccepted ? 'badge-green' : 'badge-red';
+    const ptsClass = h.pts > 0 ? 'pos' : 'neg';
+    const ptsText = h.pts > 0 ? `+${h.pts}` : `${h.pts}`;
+
+    return `
+      <div class="nudge-row">
+        <div class="nudge-icon" style="background:rgba(99,85,232,0.1)">${h.icon}</div>
+        <div class="nudge-body">
+          <div class="nudge-name">${h.name}</div>
+          <div class="nudge-meta">${h.date} · ${h.time} · ${h.trigger}</div>
+        </div>
+        <span class="nudge-pts ${ptsClass}">${ptsText}</span>
+        <span class="badge ${badge}" style="margin-left:6px;">${isAccepted ? 'Accepted' : 'Rejected'}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── Update stats ────────────────────────────────────────────────────────
+function updateStats() {
+  document.getElementById('statAccepted').textContent = acceptedCount;
+  document.getElementById('statRejected').textContent = rejectedCount;
+  const total = acceptedCount + rejectedCount;
+  const rate = total > 0 ? Math.round((acceptedCount / total) * 100) : 0;
+  document.getElementById('statRate').textContent = rate + '%';
+
+  const earned = (acceptedCount * 5) - rejectedCount;
+  document.getElementById('statEarned').textContent = '+' + earned;
+
+  // Update delta
+  const delta = document.getElementById('pointsDelta');
+  if (earned >= 0) {
+    delta.className = 'ps-delta up';
+    delta.textContent = `+${earned} from challenges`;
+  } else {
+    delta.className = 'ps-delta down';
+    delta.textContent = `${earned} from challenges`;
+  }
+}
+
+// ── Toast ────────────────────────────────────────────────────────────────
+function showToast(icon, msg, isPenalty = false) {
+  const toast = document.getElementById('toast');
+  document.getElementById('toastIcon').textContent = icon;
+  document.getElementById('toastMsg').textContent = msg;
+  toast.className = isPenalty ? 'toast penalty show' : 'toast show';
+  setTimeout(() => { toast.className = 'toast'; }, 3500);
+}
+
+// ── CSRF helper ─────────────────────────────────────────────────────────
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.startsWith(name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────
+renderChallenges();
+renderHistory();
+updateStats();
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.net.min.js"></script>
+<script>
+VANTA.NET({
+  el: "#body",
+  mouseControls: true,
+  touchControls: true,
+  gyroControls: false,
+  minHeight: 200.00,
+  minWidth: 200.00,
+  scale: 1.00,
+  scaleMobile: 1.00,
+  color: 0xA269F7,
+  backgroundColor: 0x342253,
+  opacity: 0.6  
+})
+</script>
+</body>
+</html>
