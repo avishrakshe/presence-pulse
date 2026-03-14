@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<title>Dashboard — Presence Pulse</title>
+<link rel="stylesheet" href="globals.css">
+<script src="shared-sidebar.js"></script>
+<style>
+  /* Override globals.css backgrounds so Vanta.js shows through */
+  .sidebar { background: rgba(14,17,24,0.85) !important; backdrop-filter: blur(12px); }
+  .card { background: rgba(14,17,24,0.65) !important; backdrop-filter: blur(10px); }
+  .metric-card { background: rgba(20,23,32,0.65) !important; backdrop-filter: blur(10px); }
+
+  .score-ring-container {
+    display: flex; align-items: center; gap: 32px;
+    padding: 8px 0 16px;
+  }
+  .ring-wrap { position: relative; width: 120px; height: 120px; flex-shrink: 0; }
+  .ring-wrap svg { transform: rotate(-90deg); }
+  .ring-center {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  .ring-val {
+    font-family: var(--font-display);
+    font-size: 30px; font-weight: 800;
+    color: var(--text-0); line-height: 1;
+  }
+  .ring-lbl { font-size: 10px; color: var(--text-2); margin-top: 2px; }
+
+  .score-info { flex: 1; }
+  .score-title { font-size: 13px; color: var(--text-2); margin-bottom: 6px; }
+  .score-delta {
+    font-family: var(--font-display);
+    font-size: 18px; font-weight: 700;
+    color: var(--green-400); margin-bottom: 12px;
+  }
+
+  .bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 80px; }
+  .bar-col { display: flex; flex-direction: column; align-items: center; gap: 5px; flex: 1; }
+  .bar { width: 100%; border-radius: 3px 3px 0 0; background: var(--bg-4); min-height: 4px; transition: background 0.2s; cursor: pointer; }
+  .bar:hover { background: var(--purple-400) !important; }
+  .bar.today { background: var(--purple-500) !important; }
+  .bar-day { font-size: 10px; color: var(--text-3); }
+
+  .streak-badge {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(251,191,36,0.08);
+    border: 1px solid rgba(251,191,36,0.18);
+    border-radius: var(--radius-md); padding: 12px 16px;
+    margin-top: 16px;
+  }
+  .streak-fire { font-size: 22px; }
+  .streak-num {
+    font-family: var(--font-display);
+    font-size: 22px; font-weight: 800; color: var(--amber-400);
+  }
+  .streak-label { font-size: 12px; color: var(--text-2); }
+
+  .trigger-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 0; border-bottom: 1px solid var(--border-0);
+  }
+  .trigger-row:last-child { border-bottom: none; }
+  .trigger-name { font-size: 13px; color: var(--text-1); }
+  .trigger-bar-wrap { width: 100px; }
+
+  .context-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(45,212,191,0.10);
+    border: 1px solid rgba(45,212,191,0.20);
+    border-radius: 20px; padding: 5px 12px;
+    font-size: 12px; color: var(--teal-400); font-weight: 600;
+  }
+  .context-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--teal-400); animation: pulse-dot 1.5s infinite; }
+
+  .tip-card {
+    background: linear-gradient(135deg, rgba(99,85,232,0.12), rgba(45,212,191,0.06));
+    border: 1px solid rgba(99,85,232,0.2);
+    border-radius: var(--radius-lg); padding: 18px 20px;
+    margin-top: 16px;
+  }
+  .tip-label { font-size: 10px; color: var(--purple-400); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+  .tip-text { font-size: 13px; color: var(--text-1); line-height: 1.6; }
+
+  .ble-status {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 0; border-bottom: 1px solid var(--border-0);
+    font-size: 13px; color: var(--text-1);
+  }
+  .ble-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green-400); animation: pulse-dot 1.5s infinite; }
+
+  .focus-btn {
+    width: 100%; justify-content: center; margin-top: 16px;
+    padding: 12px; font-size: 14px;
+    background: rgba(99,85,232,0.12); border: 1px solid rgba(99,85,232,0.25);
+    color: var(--purple-400);
+    border-radius: var(--radius-md); cursor: pointer;
+    font-family: var(--font-body); font-weight: 600;
+    transition: all 0.2s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .focus-btn:hover { background: rgba(99,85,232,0.20); transform: translateY(-1px); }
+
+  /* ── DASHBOARD MOBILE ── */
+  @media (max-width: 768px) {
+    .score-ring-container { flex-direction: column; align-items: center; text-align: center; gap: 16px; }
+    .bar-chart { gap: 4px; }
+    .context-pill { font-size: 11px; }
+  }
+</style>
+</head>
+<body data-page="dashboard" id="body">
+<div class="app-shell">
+  <main class="main-content">
+    <div class="page-header fade-up" style="display:flex;align-items:flex-start;justify-content:space-between;">
+      <div>
+        <div class="page-title">Dashboard</div>
+        <div class="page-subtitle">Saturday, March 14 · Good evening, Avish</div>
+      </div>
+      <div class="context-pill">
+        <span class="context-dot"></span>
+        Social context active · 3 devices nearby
+      </div>
+    </div>
+
+    <!-- Metric row -->
+    <div class="grid-4 fade-up fade-up-1" style="margin-bottom:20px;">
+      <div class="metric-card">
+        <div class="metric-label">Presence score</div>
+        <div class="metric-value">74</div>
+        <div class="metric-delta up">↑ 8 pts this week</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Phubbing sessions today</div>
+        <div class="metric-value">3</div>
+        <div class="metric-delta up">↓ down from 9 avg</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Nudge acceptance (7d)</div>
+        <div class="metric-value">81%</div>
+        <div class="metric-delta up">↑ 12% vs last week</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Current streak</div>
+        <div class="metric-value">6</div>
+        <div class="metric-delta neutral">days · best: 11</div>
+      </div>
+    </div>
+
+    <div class="grid-2-1 fade-up fade-up-2">
+      <!-- Left column -->
+      <div style="display:flex;flex-direction:column;gap:16px;">
+
+        <!-- Score + weekly chart -->
+        <div class="card">
+          <div class="card-title">Weekly presence score</div>
+          <div class="score-ring-container">
+            <div class="ring-wrap">
+              <svg width="120" height="120" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="52" fill="none" stroke="var(--bg-4)" stroke-width="10"/>
+                <circle cx="60" cy="60" r="52" fill="none"
+                  stroke="url(#scoreGrad)" stroke-width="10"
+                  stroke-dasharray="326.7" stroke-dashoffset="88"
+                  stroke-linecap="round"/>
+                <defs>
+                  <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#6355e8"/>
+                    <stop offset="100%" stop-color="#2dd4bf"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div class="ring-center">
+                <div class="ring-val">74</div>
+                <div class="ring-lbl">/ 100</div>
+              </div>
+            </div>
+            <div class="score-info">
+              <div class="score-title">Your presence score this week</div>
+              <div class="score-delta">+8 pts improvement</div>
+              <div style="margin-bottom:8px;">
+                <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-2);margin-bottom:6px;">
+                  <span>Progress to goal (85)</span><span>74/85</span>
+                </div>
+                <div class="progress-track">
+                  <div class="progress-fill" style="width:87%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bar-chart" style="margin-top:8px;">
+            <div class="bar-col"><div class="bar" style="height:44px"></div><span class="bar-day">Mon</span></div>
+            <div class="bar-col"><div class="bar" style="height:52px"></div><span class="bar-day">Tue</span></div>
+            <div class="bar-col"><div class="bar" style="height:36px"></div><span class="bar-day">Wed</span></div>
+            <div class="bar-col"><div class="bar" style="height:60px"></div><span class="bar-day">Thu</span></div>
+            <div class="bar-col"><div class="bar" style="height:48px"></div><span class="bar-day">Fri</span></div>
+            <div class="bar-col"><div class="bar" style="height:68px"></div><span class="bar-day">Sat</span></div>
+            <div class="bar-col"><div class="bar today" style="height:74px"></div><span class="bar-day" style="color:var(--purple-400);">Today</span></div>
+          </div>
+        </div>
+
+        <!-- Top triggers -->
+        <div class="card">
+          <div class="card-title">Top triggers today</div>
+          <div class="trigger-row">
+            <span class="trigger-name">After notification buzz</span>
+            <div class="trigger-bar-wrap">
+              <div class="progress-track"><div class="progress-fill" style="width:78%"></div></div>
+            </div>
+            <span class="badge badge-red">78%</span>
+          </div>
+          <div class="trigger-row">
+            <span class="trigger-name">Boredom reflex</span>
+            <div class="trigger-bar-wrap">
+              <div class="progress-track"><div class="progress-fill" style="width:55%"></div></div>
+            </div>
+            <span class="badge badge-amber">55%</span>
+          </div>
+          <div class="trigger-row">
+            <span class="trigger-name">Meal time</span>
+            <div class="trigger-bar-wrap">
+              <div class="progress-track"><div class="progress-fill" style="width:34%"></div></div>
+            </div>
+            <span class="badge badge-teal">34%</span>
+          </div>
+          <div class="trigger-row">
+            <span class="trigger-name">Morning routine</span>
+            <div class="trigger-bar-wrap">
+              <div class="progress-track"><div class="progress-fill" style="width:20%"></div></div>
+            </div>
+            <span class="badge badge-purple">20%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right column -->
+      <div style="display:flex;flex-direction:column;gap:16px;">
+
+        <!-- Streak -->
+        <div class="card">
+          <div class="card-title">Streak</div>
+          <div class="streak-badge">
+            <span class="streak-fire">🔥</span>
+            <div>
+              <div class="streak-num">6 days</div>
+              <div class="streak-label">Personal best: 11 days</div>
+            </div>
+          </div>
+          <div style="margin-top:16px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-2);margin-bottom:8px;">
+              <span>To best streak</span><span>6/11 days</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" style="width:55%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- BLE + context -->
+        <div class="card">
+          <div class="card-title">Device status</div>
+          <div class="ble-status">
+            <div class="ble-dot"></div>
+            BLE scanning active
+          </div>
+          <div class="ble-status" style="border:none;">
+            <div class="ble-dot" style="background:var(--purple-400)"></div>
+            On-device ML running
+          </div>
+          <div style="font-size:12px;color:var(--text-3);margin-top:8px;">Battery impact: &lt;2% · Inference: 6ms</div>
+          <button class="focus-btn" onclick="alert('Focus session started!')">
+            ▶ Start manual focus session
+          </button>
+        </div>
+
+        <!-- Daily tip -->
+        <div class="card">
+          <div class="card-title">Today's tip</div>
+          <div class="tip-card">
+            <div class="tip-label">Coach insight</div>
+            <div class="tip-text">You phub most after notification buzzes. Try a 30-minute notification silence before your next social event — it removes your #1 trigger.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.net.min.js"></script>
+<script>
+VANTA.NET({
+  el: "#body",
+  mouseControls: true,
+  touchControls: true,
+  gyroControls: false,
+  minHeight: 200.00,
+  minWidth: 200.00,
+  scale: 1.00,
+  scaleMobile: 1.00,
+  color: 0xA269F7,
+  backgroundColor: 0x342253,
+  opacity: 0.6  
+})
+</script>
+</body>
+
+</html>

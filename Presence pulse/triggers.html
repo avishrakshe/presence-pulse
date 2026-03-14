@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trigger Map — Presence Pulse</title>
+<link rel="stylesheet" href="globals.css">
+<script src="shared-sidebar.js"></script>
+
+<style>
+  .heatmap-grid {
+    display: grid;
+    grid-template-columns: 60px repeat(7, 1fr);
+    gap: 4px; margin-top: 12px;
+  }
+  .hm-label {
+    display: flex; align-items: center; justify-content: flex-end;
+    font-size: 11px; color: var(--text-3); padding-right: 8px;
+  }
+  .hm-day-label {
+    text-align: center; font-size: 11px;
+    color: var(--text-3); font-weight: 600; padding-bottom: 6px;
+  }
+  .hm-cell {
+    height: 28px; border-radius: 4px;
+    cursor: pointer; position: relative;
+    transition: transform 0.1s;
+  }
+  .hm-cell:hover { transform: scale(1.1); z-index: 2; }
+  .hm-cell[data-v="0"] { background: var(--bg-3); }
+  .hm-cell[data-v="1"] { background: rgba(99,85,232,0.15); }
+  .hm-cell[data-v="2"] { background: rgba(99,85,232,0.30); }
+  .hm-cell[data-v="3"] { background: rgba(99,85,232,0.50); }
+  .hm-cell[data-v="4"] { background: rgba(99,85,232,0.70); }
+
+  .app-bar-row {
+    display: flex; align-items: center; gap: 14px;
+    padding: 11px 0; border-bottom: 1px solid var(--border-0);
+  }
+  .app-bar-row:last-child { border-bottom: none; }
+  .app-logo { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .app-name { font-size: 13px; color: var(--text-1); flex: 1; font-weight: 500; }
+  .app-pct { font-size: 12px; color: var(--text-2); min-width: 36px; text-align: right; }
+
+  .context-card {
+    display: flex; flex-direction: column; align-items: center;
+    background: var(--bg-2); border-radius: var(--radius-md); padding: 16px 12px;
+    text-align: center; border: 1px solid var(--border-0);
+  }
+  .cc-icon { font-size: 28px; margin-bottom: 8px; }
+  .cc-pct { font-family: var(--font-display); font-size: 24px; font-weight: 800; color: var(--text-0); }
+  .cc-label { font-size: 12px; color: var(--text-2); margin-top: 4px; line-height: 1.4; }
+
+  .lag-bar-row {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+  }
+  .lag-label { font-size: 12px; color: var(--text-2); min-width: 80px; }
+  .lag-bar-track { flex: 1; height: 8px; background: var(--bg-4); border-radius: 4px; overflow: hidden; }
+  .lag-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--purple-500), var(--teal-400)); }
+  .lag-val { font-size: 12px; color: var(--text-1); font-weight: 600; min-width: 40px; text-align: right; }
+
+  .risk-callout {
+    background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.20);
+    border-radius: var(--radius-lg); padding: 18px 20px; margin-top: 16px;
+  }
+  .risk-label { font-size: 10px; color: var(--red-400); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+  .risk-text { font-size: 13px; color: var(--text-1); line-height: 1.6; }
+
+  .tooltip-box {
+    position: fixed; background: var(--bg-2); border: 1px solid var(--border-1);
+    border-radius: var(--radius-sm); padding: 8px 12px;
+    font-size: 12px; color: var(--text-0); pointer-events: none;
+    display: none; z-index: 1000; white-space: nowrap;
+  }
+
+  /* ── TRIGGERS MOBILE ── */
+  @media (max-width: 768px) {
+    .heatmap-grid { overflow-x: auto; -webkit-overflow-scrolling: touch; min-width: 500px; }
+    .card:has(.heatmap-grid) { overflow-x: auto; }
+  }
+  @media (max-width: 900px) {
+    .grid-3 { grid-template-columns: 1fr; }
+    .card[style*="grid-column:span 2"] { grid-column: span 1 !important; }
+  }
+</style>
+</head>
+<body data-page="triggers" id="body">
+<div class="app-shell">
+  <main class="main-content">
+    <div class="page-header fade-up">
+      <div class="page-title">Trigger map</div>
+      <div class="page-subtitle">When, where, and why you phub — your personal phubbing fingerprint</div>
+    </div>
+
+    <!-- Heatmap + apps -->
+    <div class="grid-2-1 fade-up fade-up-1" style="margin-bottom:16px;">
+      <div class="card">
+        <div class="card-title">Phubbing heatmap — time of day × day of week</div>
+        <div class="heatmap-grid" id="heatmapGrid"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:14px;">
+          <span style="font-size:11px;color:var(--text-3);">Low</span>
+          <div style="display:flex;gap:3px;">
+            <div style="width:16px;height:16px;border-radius:3px;background:var(--bg-3);"></div>
+            <div style="width:16px;height:16px;border-radius:3px;background:rgba(99,85,232,0.15);"></div>
+            <div style="width:16px;height:16px;border-radius:3px;background:rgba(99,85,232,0.30);"></div>
+            <div style="width:16px;height:16px;border-radius:3px;background:rgba(99,85,232,0.50);"></div>
+            <div style="width:16px;height:16px;border-radius:3px;background:rgba(99,85,232,0.70);"></div>
+          </div>
+          <span style="font-size:11px;color:var(--text-3);">High</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Top trigger apps</div>
+        <div class="app-bar-row">
+          <div class="app-logo" style="background:rgba(229,68,109,0.15);">📸</div>
+          <span class="app-name">Instagram</span>
+          <div style="flex:2;"><div class="progress-track"><div class="progress-fill" style="width:80%;"></div></div></div>
+          <span class="app-pct">80%</span>
+        </div>
+        <div class="app-bar-row">
+          <div class="app-logo" style="background:rgba(37,211,102,0.12);">💬</div>
+          <span class="app-name">WhatsApp</span>
+          <div style="flex:2;"><div class="progress-track"><div class="progress-fill" style="width:68%;"></div></div></div>
+          <span class="app-pct">68%</span>
+        </div>
+        <div class="app-bar-row">
+          <div class="app-logo" style="background:rgba(255,0,0,0.10);">▶️</div>
+          <span class="app-name">YouTube</span>
+          <div style="flex:2;"><div class="progress-track"><div class="progress-fill" style="width:50%;"></div></div></div>
+          <span class="app-pct">50%</span>
+        </div>
+        <div class="app-bar-row">
+          <div class="app-logo" style="background:rgba(29,155,240,0.12);">🐦</div>
+          <span class="app-name">Twitter / X</span>
+          <div style="flex:2;"><div class="progress-track"><div class="progress-fill" style="width:35%;"></div></div></div>
+          <span class="app-pct">35%</span>
+        </div>
+        <div class="app-bar-row">
+          <div class="app-logo" style="background:rgba(99,85,232,0.12);">💜</div>
+          <span class="app-name">Snapchat</span>
+          <div style="flex:2;"><div class="progress-track"><div class="progress-fill" style="width:24%;"></div></div></div>
+          <span class="app-pct">24%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-3 fade-up fade-up-2" style="margin-bottom:16px;">
+      <div class="card" style="grid-column:span 2;">
+        <div class="card-title">Notification-to-phub lag</div>
+        <p style="font-size:12px;color:var(--text-2);margin-bottom:14px;">How quickly you unlock after a notification buzz — shorter = more reflexive</p>
+        <div class="lag-bar-row"><span class="lag-label">&lt; 10 sec</span><div class="lag-bar-track"><div class="lag-fill" style="width:72%"></div></div><span class="lag-val">72%</span></div>
+        <div class="lag-bar-row"><span class="lag-label">10–30 sec</span><div class="lag-bar-track"><div class="lag-fill" style="width:18%"></div></div><span class="lag-val">18%</span></div>
+        <div class="lag-bar-row"><span class="lag-label">30–60 sec</span><div class="lag-bar-track"><div class="lag-fill" style="width:8%"></div></div><span class="lag-val">8%</span></div>
+        <div class="lag-bar-row"><span class="lag-label">&gt; 60 sec</span><div class="lag-bar-track"><div class="lag-fill" style="width:2%"></div></div><span class="lag-val">2%</span></div>
+        <div class="risk-callout">
+          <div class="risk-label">Risky hour</div>
+          <div class="risk-text">Your riskiest window is <strong style="color:var(--red-400);">7–9 PM</strong> on weekdays. Try enabling Do Not Disturb from 7 PM during social dinners.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div class="card">
+          <div class="card-title">BLE accuracy</div>
+          <div style="text-align:center;padding:8px 0;">
+            <div style="font-family:var(--font-display);font-size:36px;font-weight:800;color:var(--teal-400);">87%</div>
+            <div style="font-size:12px;color:var(--text-2);margin-top:4px;">context detection accuracy</div>
+          </div>
+          <div class="progress-track" style="margin-top:8px;"><div class="progress-fill" style="width:87%"></div></div>
+        </div>
+
+        <!-- Context breakdown -->
+        <div class="card" style="padding:14px;">
+          <div class="card-title">Social context split</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;"><span style="color:var(--text-1);">Meals</span><span class="badge badge-purple">38%</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;"><span style="color:var(--text-1);">Meetings</span><span class="badge badge-teal">28%</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;"><span style="color:var(--text-1);">Gatherings</span><span class="badge badge-amber">22%</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;"><span style="color:var(--text-1);">Commute</span><span class="badge badge-red">12%</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<div class="tooltip-box" id="tooltip"></div>
+
+<script>
+// Heatmap data: hours (rows) × days (cols) 0-4 intensity
+const hours = ['6 AM','8 AM','10 AM','12 PM','2 PM','4 PM','6 PM','8 PM','10 PM'];
+const days  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+// values[hour][day]
+const values = [
+  [0,0,0,0,0,0,1],
+  [1,1,0,1,0,1,2],
+  [0,1,1,0,1,0,1],
+  [1,2,2,1,2,1,2],
+  [1,2,1,2,2,1,1],
+  [2,2,3,2,3,2,2],
+  [3,3,4,3,4,3,3],
+  [4,4,3,4,3,4,4],
+  [2,3,2,3,2,3,3],
+];
+
+const grid = document.getElementById('heatmapGrid');
+// Header row
+grid.innerHTML += '<div></div>';
+days.forEach(d => grid.innerHTML += `<div class="hm-day-label">${d}</div>`);
+
+hours.forEach((h,hi) => {
+  grid.innerHTML += `<div class="hm-label">${h}</div>`;
+  days.forEach((d,di) => {
+    const v = values[hi][di];
+    grid.innerHTML += `<div class="hm-cell" data-v="${v}" title="${h} · ${d} · intensity ${v}/4"></div>`;
+  });
+});
+
+// Tooltip
+const tooltip = document.getElementById('tooltip');
+document.querySelectorAll('.hm-cell').forEach(cell => {
+  cell.addEventListener('mousemove', e => {
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.clientX + 12) + 'px';
+    tooltip.style.top  = (e.clientY - 28) + 'px';
+    tooltip.textContent = cell.title;
+  });
+  cell.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+});
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.net.min.js"></script>
+<script>
+VANTA.NET({
+  el: "#body",
+  mouseControls: true,
+  touchControls: true,
+  gyroControls: false,
+  minHeight: 200.00,
+  minWidth: 200.00,
+  scale: 1.00,
+  scaleMobile: 1.00,
+  color: 0xA269F7,
+  backgroundColor: 0x342253,
+  opacity: 0.6  
+})
+</script>
+</body>
+</html>
